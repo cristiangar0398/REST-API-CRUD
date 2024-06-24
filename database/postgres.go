@@ -5,11 +5,9 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/cristiangar0398/REST-API-CRUD/models"
-)
+	_ "github.com/lib/pq"
 
-var (
-	user models.User
+	"github.com/cristiangar0398/REST-API-CRUD/models"
 )
 
 type PostgresRepository struct {
@@ -25,11 +23,12 @@ func NewPostgresRepository(url string) (*PostgresRepository, error) {
 }
 
 func (repo *PostgresRepository) InsertUser(ctx context.Context, user *models.User) error {
-	_, err := repo.db.ExecContext(ctx, "INSERT INTO users (email , password) VALUES ($1, $2)", user.Email, user.Password)
+	_, err := repo.db.ExecContext(ctx, "INSERT INTO users (id , email , password) VALUES ($1, $2 ,$3)", user.Id, user.Email, user.Password)
 	return err
 }
 
 func (repo *PostgresRepository) GetUserById(ctx context.Context, id string) (*models.User, error) {
+	var user models.User
 	rows, err := repo.db.QueryContext(ctx, "SELECT id , email FROM user WHERE id = $1", id)
 
 	defer func() {
@@ -47,6 +46,31 @@ func (repo *PostgresRepository) GetUserById(ctx context.Context, id string) (*mo
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (repo *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	var user models.User
+	rows, err := repo.db.QueryContext(ctx, "SELECT id, email FROM users WHERE email = $1", email)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Fatal(cerr)
+		}
+	}()
+
+	if rows.Next() {
+		if err := rows.Scan(&user.Id, &user.Email); err != nil {
+			return nil, err
+		}
+		return &user, nil
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 func (repo *PostgresRepository) Close() error {

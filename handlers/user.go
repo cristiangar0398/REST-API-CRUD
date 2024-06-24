@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/cristiangar0398/REST-API-CRUD/models"
@@ -70,11 +71,28 @@ func generateUserID() (string, error) {
 }
 
 func createUser(ctx context.Context, request SignUpRequest, userID string) (*models.User, error) {
+
+	isRegistered, err := isEmailRegistered(ctx, request.Email)
+	if err != nil {
+		return nil, err
+	}
+	if isRegistered {
+		return nil, fmt.Errorf("email already registered")
+	}
+
 	user := &models.User{
 		Email:    request.Email,
 		Password: request.Password,
 		Id:       userID,
 	}
-	err := repository.InsertUser(ctx, user)
+	err = repository.InsertUser(ctx, user)
 	return user, err
+}
+
+func isEmailRegistered(ctx context.Context, email string) (bool, error) {
+	user, err := repository.GetUserByEmail(ctx, email)
+	if err != nil {
+		return false, err
+	}
+	return user != nil, nil
 }
