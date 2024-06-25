@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/cristiangar0398/REST-API-CRUD/models"
 	"github.com/cristiangar0398/REST-API-CRUD/repository"
 	"github.com/cristiangar0398/REST-API-CRUD/server"
+	"github.com/golang-jwt/jwt"
 	"github.com/segmentio/ksuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -25,6 +30,10 @@ type SignUpRequest struct {
 type SignUpResponse struct {
 	Id    string `json:"id"`
 	Email string `json:"email"`
+}
+
+type LoginResponse struct {
+	Token string `json:"token"`
 }
 
 func SignUpHandler(s server.Server) http.HandlerFunc {
@@ -71,7 +80,14 @@ func generateUserID() (string, error) {
 }
 
 func createUser(ctx context.Context, request SignUpRequest, userID string) (*models.User, error) {
+	//traemos la variable del archivo .env para hacer el hash del pass
+	hashCostStr := os.Getenv("HASH_COST")
+	hashCost, err := strconv.Atoi(hashCostStr)
+	if err != nil {
+		return nil, fmt.Errorf("Error al convertir HASH_COST a entero:", err)
+	}
 
+	//logica de creacion de usuario
 	isRegistered, err := isEmailRegistered(ctx, request.Email)
 	if err != nil {
 		return nil, err
@@ -80,9 +96,11 @@ func createUser(ctx context.Context, request SignUpRequest, userID string) (*mod
 		return nil, fmt.Errorf("email already registered")
 	}
 
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.Password), hashCost)
+
 	user := &models.User{
 		Email:    request.Email,
-		Password: request.Password,
+		Password: string(hashedPassword),
 		Id:       userID,
 	}
 	err = repository.InsertUser(ctx, user)
@@ -95,4 +113,49 @@ func isEmailRegistered(ctx context.Context, email string) (bool, error) {
 		return false, err
 	}
 	return user != nil, nil
+}
+
+func LoginHandler(s server.Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := json.NewDecoder(r.Body).Decode(&request)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		user, err := repository.GetUserByEmail(r.Context(), request.Email)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if user == nil {
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		}
+
+		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(request.Password))
+		if err != nil {
+			http.Error(w, "invalid credential ", http.StatusUnauthorized)
+			return
+		}
+
+		claims := models.AppClaims{
+			UserId: user.Id,
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: time.Now().Add(2 * time.Hour * 24).Unix(),
+			},
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		tokenString, err := token.SignedString([]byte(s.Config().JWTSecret))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("content-type", "aaplication/json")
+		json.NewEncoder(w).Encode(LoginResponse{
+			Token: tokenString,
+		})
+	}
 }
