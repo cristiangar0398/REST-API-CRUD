@@ -29,7 +29,12 @@ func (repo *PostgresRepository) InsertUser(ctx context.Context, user *models.Use
 
 func (repo *PostgresRepository) GetUserById(ctx context.Context, id string) (*models.User, error) {
 	var user models.User
-	rows, err := repo.db.QueryContext(ctx, "SELECT id , email FROM user WHERE id = $1", id)
+	rows, err := repo.db.QueryContext(ctx, "SELECT id , email FROM users WHERE id = $1", id)
+
+	if err != nil {
+		log.Fatal(err)
+		return &user, nil
+	}
 
 	defer func() {
 		err = rows.Close()

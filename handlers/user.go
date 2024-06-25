@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/cristiangar0398/REST-API-CRUD/middleware"
 	"github.com/cristiangar0398/REST-API-CRUD/models"
 	"github.com/cristiangar0398/REST-API-CRUD/repository"
 	"github.com/cristiangar0398/REST-API-CRUD/server"
@@ -157,5 +159,28 @@ func LoginHandler(s server.Server) http.HandlerFunc {
 		json.NewEncoder(w).Encode(LoginResponse{
 			Token: tokenString,
 		})
+	}
+}
+
+func MeHandler(s server.Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token, err := middleware.TokenParseString(w, s, r)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if claims, ok := token.Claims.(*models.AppClaims); ok && token.Valid {
+			fmt.Println(ok)
+			user, err := repository.GetUserById(r.Context(), claims.UserId)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("content-type", "aaplication/json")
+			json.NewEncoder(w).Encode(user)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 }
