@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 
 	_ "github.com/lib/pq"
@@ -28,10 +29,14 @@ func (repo *PostgresRepository) InsertUser(ctx context.Context, user *models.Use
 }
 
 func (repo *PostgresRepository) InsertPost(ctx context.Context, post *models.Post) error {
-	_, err := repo.db.ExecContext(ctx, "INSERT INTO posts (id , post_content , user_id) VALUES ($1, $2 ,$3)", post.Id, post.Created_at, post.UserId)
+	_, err := repo.db.ExecContext(ctx, "INSERT INTO posts (id , post_content , user_id) VALUES ($1, $2 ,$3)", post.Id, post.Post_content, post.UserId)
 	return err
 }
 
+func (repo *PostgresRepository) UpdatePost(ctx context.Context, post *models.Post) error {
+	_, err := repo.db.ExecContext(ctx, "UPDATE posts SET post_content = $1 WHERE id = $2 and user_id = $3", post.Post_content, post.Id, post.UserId)
+	return err
+}
 func (repo *PostgresRepository) GetUserById(ctx context.Context, id string) (*models.User, error) {
 	var user models.User
 	rows, err := repo.db.QueryContext(ctx, "SELECT id , email FROM users WHERE id = $1", id)
@@ -56,6 +61,32 @@ func (repo *PostgresRepository) GetUserById(ctx context.Context, id string) (*mo
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (repo *PostgresRepository) GetPostById(ctx context.Context, id string) (*models.Post, error) {
+	var post models.Post
+	rows, err := repo.db.QueryContext(ctx, "SELECT id , post_content , created_at , user_id FROM posts WHERE id = $1", id)
+
+	if err != nil {
+		log.Fatal(err)
+		return &post, nil
+	}
+
+	defer func() {
+		err = rows.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+	for rows.Next() {
+		if err = rows.Scan(&post.Id, &post.Post_content, &post.Created_at, &post.UserId); err != nil {
+			return &post, nil
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return &post, nil
 }
 
 func (repo *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
@@ -83,6 +114,35 @@ func (repo *PostgresRepository) GetUserByEmail(ctx context.Context, email string
 	return nil, nil
 }
 
+func (repo *PostgresRepository) DeletePost(ctx context.Context, id string, userdID string) error {
+	fmt.Println(userdID)
+	_, err := repo.db.ExecContext(ctx, "DELETE FROM posts WHERE id = $1 and user_id = $2", id, userdID)
+	return err
+}
+
+func (repo *PostgresRepository) ListPost(ctx context.Context, page uint64) ([]*models.Post, error) {
+	rows, err := repo.db.QueryContext(ctx, "SELECT id, post_content, user_id, created_at FROM posts LIMIT $1 OFFSET $2", 5, page*5)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = rows.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+	var posts []*models.Post
+	for rows.Next() {
+		var post = models.Post{}
+		if err = rows.Scan(&post.Id, &post.Post_content, &post.UserId, &post.Created_at); err == nil {
+			posts = append(posts, &post)
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return posts, nil
+}
 func (repo *PostgresRepository) Close() error {
 	return repo.db.Close()
 }
