@@ -170,7 +170,6 @@ func MeHandler(s server.Server) http.HandlerFunc {
 		}
 
 		if claims, ok := token.Claims.(*models.AppClaims); ok && token.Valid {
-			fmt.Println(ok)
 			user, err := repository.GetUserById(r.Context(), claims.UserId)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
