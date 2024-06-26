@@ -143,6 +143,7 @@ func (repo *PostgresRepository) ListPost(ctx context.Context, page uint64) ([]*m
 	}
 	return posts, nil
 }
+
 func (repo *PostgresRepository) Close() error {
 	return repo.db.Close()
 }
