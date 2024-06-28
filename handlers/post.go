@@ -51,14 +51,19 @@ func InsertPostHandler(s server.Server) http.HandlerFunc {
 				UserId:       claims.UserId,
 			}
 
-			fmt.Println("post_content :", post.Post_content)
 			err = repository.InsertPost(r.Context(), &post)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			w.Header().Set("content-type", "aaplication/json")
 
+			var postMessage = models.WebsocketMessage{
+				Type:    "Post_Created",
+				Payload: post,
+			}
+
+			s.Hub().Broadcast(postMessage, nil)
+			w.Header().Set("content-type", "aaplication/json")
 			json.NewEncoder(w).Encode(PostResponse{
 				Id:          post.Id,
 				PostContent: post.Post_content,

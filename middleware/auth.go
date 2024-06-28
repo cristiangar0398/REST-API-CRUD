@@ -55,7 +55,7 @@ func TokenParseString(w http.ResponseWriter, s server.Server, r *http.Request) (
 	if jwtSecret == "" {
 		return nil, errors.New("failed to retrieve JWT secret from configuration")
 	}
-	token, err := jwt.ParseWithClaims(tokenString, &models.AppClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &models.AppClaims{}, func(token *jwt.Token) (any, error) {
 		return []byte(s.Config().JWTSecret), nil
 	})
 	if err != nil {
